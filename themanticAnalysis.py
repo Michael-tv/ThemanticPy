@@ -4,6 +4,8 @@ import glob
 
 """
 Tag description
+tag id is assigned automatically, in the background, just level needs to be specified
+
 <id=001, tag=name, tone=P, comment=> stuff said in here </1>
 Tone = N negative, P = positive, N = Neutral
 
@@ -14,9 +16,81 @@ Tone = N negative, P = positive, N = Neutral
 # -> Append (opening index, Closing Index) to tags list    
     
 """
+
+#TODO: create a tag class to store all tag data
+
+class Tag:
+    def __init__(self, level=None):
+        
+        self.level = level
+        
+        # Write function that parses opening tag
+        
+        # Write function that parses closing tag
+    
+    def readOpeningTag():
+        return
+    
+    def readClosingTag():        
+        return
+
+def findTags(str):
+    openingTags = list(re.finditer('(<[^/][^<]+>)', str))
+    closingTags = list(re.finditer('(</..>)', str))
+    return openingTags, closingTags
+
+    # Extract tag levels
+
+def extractTagLevels():
+    
+    # Find all 
+    
+    return
+
+
+def findHighestTagLevel(openingTags, closingTags):
+    
+    maxOpening = 0
+    findStr = 'level='
+    for tag in openingTags:
+        tagStr = tag.group() 
+        start = tagStr.find(findStr) + len(findStr) + 1
+        end = start + 1
+        level = tagStr[start:end]
+        
+        if maxOpening < int(level):
+            maxOpening = int(level)
+        
+    maxClosing = 0
+    findStr = '</'        
+    for tag in closingTags:
+        tagStr = tag.group()
+        start = tagStr.find(findStr) + len(findStr) + 1
+        end = start + 1
+        level = tagStr[start:end]
+        
+        if maxClosing < int(level):
+            maxClosing = int(level)
+                   
+    # check that maxOpeningLevel == maxClosingLevel
+    assert (maxClosing == maxOpening), 'Max opening tag level must equal max closing tag level'
+    
+    return maxOpening 
+
+def assignTagIds():
+    
+    
+    
+    return
+
 class ThemanticAnalysis:
     def __init__(self, fileList):
         """
+        
+        process
+         - read file(s)
+         - id tags
+        
         _summary_
 
         Parameters
@@ -27,7 +101,7 @@ class ThemanticAnalysis:
         
         self.fileList = fileList # Path to files that must be analysed
         self.interviewData = self.readFiles()
-        
+            
     
     def readFiles(self):
                       
@@ -48,9 +122,9 @@ class ThemanticAnalysis:
             files[fileName] = fileContentStr 
 
         self.interviewData = files   
+        
     
-    
-    def findTagLocations(file):    
+    def findTagLocations(self):    
             
         # Find starts and ends of tags       
         tagsStartIdx = {x.group()[4:7]: x.start() for x in re.finditer('<id....', file)}
