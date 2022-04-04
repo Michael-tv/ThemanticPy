@@ -17,7 +17,74 @@ Tone = N negative, P = positive, N = Neutral
     
 """
 
-#TODO: create a tag class to store all tag data
+class Tag:
+    """
+    Data Class to store all tag information
+    """
+    
+    def __init__(self):
+        
+        self.startIdx
+        self.endIdx
+        
+        return
+    
+
+class Interview:
+    def __init__(self, name, text):
+        self.name = name
+        self.rawText = text
+        self.rawTags = self.findTags(text)
+        
+    def finRawTags(self, str):
+        openingTags = list(re.finditer('(<[^/][^<]+>)', str))
+        closingTags = list(re.finditer('(</..>)', str))
+        return openingTags, closingTags
+
+    def findHighestTagLevel(self, openingTags, closingTags):
+    
+        maxOpening = 0
+        findStr = 'level='
+        for tag in openingTags:
+            tagStr = tag.group() 
+            start = tagStr.find(findStr) + len(findStr) + 1
+            end = start + 1
+            level = tagStr[start:end]
+            
+            if maxOpening < int(level):
+                maxOpening = int(level)
+            
+        maxClosing = 0
+        findStr = '</'        
+        for tag in closingTags:
+            tagStr = tag.group()
+            start = tagStr.find(findStr) + len(findStr) + 1
+            end = start + 1
+            level = tagStr[start:end]
+            
+            if maxClosing < int(level):
+                maxClosing = int(level)
+                    
+        # check that maxOpeningLevel == maxClosingLevel
+        assert (maxClosing == maxOpening), 'Max opening tag level must equal max closing tag level'
+        
+        return maxOpening
+    
+    
+    def extractTags(self):
+        
+        for interview in self.interviews:
+            rawTags = self.findTags(interview.rawText)
+            
+            print(rawTags)
+            
+            interview.rawTags = rawTags
+            
+            highestTagLevel = self.findHighestTagLevel(rawTags)
+    
+    """
+    Data class containing all interview data
+    """
 
 class Tag:
     def __init__(self, level=None):
@@ -34,12 +101,6 @@ class Tag:
     def readClosingTag():        
         return
 
-def findTags(str):
-    openingTags = list(re.finditer('(<[^/][^<]+>)', str))
-    closingTags = list(re.finditer('(</..>)', str))
-    return openingTags, closingTags
-
-    # Extract tag levels
 
 def extractTagLevels():
     
@@ -48,39 +109,9 @@ def extractTagLevels():
     return
 
 
-def findHighestTagLevel(openingTags, closingTags):
-    
-    maxOpening = 0
-    findStr = 'level='
-    for tag in openingTags:
-        tagStr = tag.group() 
-        start = tagStr.find(findStr) + len(findStr) + 1
-        end = start + 1
-        level = tagStr[start:end]
-        
-        if maxOpening < int(level):
-            maxOpening = int(level)
-        
-    maxClosing = 0
-    findStr = '</'        
-    for tag in closingTags:
-        tagStr = tag.group()
-        start = tagStr.find(findStr) + len(findStr) + 1
-        end = start + 1
-        level = tagStr[start:end]
-        
-        if maxClosing < int(level):
-            maxClosing = int(level)
-                   
-    # check that maxOpeningLevel == maxClosingLevel
-    assert (maxClosing == maxOpening), 'Max opening tag level must equal max closing tag level'
-    
-    return maxOpening 
 
 def assignTagIds():
-    
-    
-    
+ 
     return
 
 class ThemanticAnalysis:
@@ -100,13 +131,26 @@ class ThemanticAnalysis:
         """
         
         self.fileList = fileList # Path to files that must be analysed
-        self.interviewData = self.readFiles()
-            
+        self.interviews = self.readFiles()        
+               
+               
+    # def processInterviewData(self):
+    
+    #TODO: convienience function that runs entire analysis
+        
+    #     files = self.readFiles()
+        
+    #     tagsIdx = self.findTagLocations(self)
+        
+        
+    #     findTags(file)
+        
+    #     return interviewdata        
     
     def readFiles(self):
                       
         # Read all files, assign filename as key
-        files = {}
+        interviews = []
         for file in self.fileList:
                 
             # Extract filename
@@ -118,30 +162,41 @@ class ThemanticAnalysis:
                 
             #TODO Some filecleaning is reaquired here, strip ending spaces etc...
             fileContentStr = ' '.join(fileContent)  
-                    
-            files[fileName] = fileContentStr 
-
-        self.interviewData = files   
-        
-    
-    def findTagLocations(self):    
             
-        # Find starts and ends of tags       
-        tagsStartIdx = {x.group()[4:7]: x.start() for x in re.finditer('<id....', file)}
-        tagsEndIdx = {x.group()[2:5]: x.start() for x in re.finditer('</...>', file)}
+            interviews.append(
+                Interview(
+                  name = fileName,
+                  text = fileContentStr  
+                )
+            )
+
+        return interviews
+    
+            
+
+            
+            # Extract tags, start with highest tag level
+            
+             
+    
+    # def findTagLocations(self):    
+            
+    #     # Find starts and ends of tags       
+    #     tagsStartIdx = {x.group()[4:7]: x.start() for x in re.finditer('<id....', file)}
+    #     tagsEndIdx = {x.group()[2:5]: x.start() for x in re.finditer('</...>', file)}
         
-        # Check that there are equal amount of open and close tags
-        test = len(tagsStartIdx) == len(tagsEndIdx)
-        assert (test), 'Number of opening tags must match number of closing tags' 
+    #     # Check that there are equal amount of open and close tags
+    #     test = len(tagsStartIdx) == len(tagsEndIdx)
+    #     assert (test), 'Number of opening tags must match number of closing tags' 
         
-        tagsIdx = {key:(tagsStartIdx[key], tagsEndIdx[key]) for key, val in tagsStartIdx.items()} 
+    #     tagsIdx = {key:(tagsStartIdx[key], tagsEndIdx[key]) for key, val in tagsStartIdx.items()} 
         
-        return tagsIdx
+    #     return tagsIdx
         
 
 if __name__ == '__main__': 
     #C:\Users\michael.victor\Dropbox\Transcription
-    fileList = ['C:/Users/michael.victor/Dropbox/Transcription/transcription.txt']
+    fileList = ['C:/Users/michael.victor/Dropbox/Transcription/test_interview.txt']
     
     analysis = ThemanticAnalysis(fileList)
     
