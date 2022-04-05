@@ -1,6 +1,9 @@
 from collections import deque
+from logging import exception
 import re
 import glob
+
+from collections import deque
 
 """
 Tag description
@@ -9,111 +12,124 @@ tag id is assigned automatically, in the background, just level needs to be spec
 <id=001, tag=name, tone=P, comment=> stuff said in here </1>
 Tone = N negative, P = positive, N = Neutral
 
-# Process:
-## Find all tags
-# -> Find index of all opening tags
-# -> FInd index of all corresponding closing tags
-# -> Append (opening index, Closing Index) to tags list    
-    
 """
 
 class Tag:
     """
     Data Class to store all tag information
     """
-    
-    def __init__(self):
-        
-        self.startIdx
-        self.endIdx
-        
+    def __init__(self, startIdx, endIdx, rawText):
+        self.startIdx = startIdx
+        self.endIdx = endIdx
+        self.rawText = rawText
+        self.tagList = self.extractTagList()
+        self.text = self.extractTagStr()
+
         return
+
+    def extractTagList(self):
+        
+        try:        
+            tagList = re.search(
+                'tags\s*=\s*\\[(.*?)\s*\\]',
+                self.rawText,
+                re.IGNORECASE).group(1).split(',')
+        except:
+            raise Exception('No list of tags could be identified for tag')
+
+        return tagList
+
+    def extractTagStr(self):
+        
+        try:
+        
+            tagStrMatches = re.findall('>(.*?)</',
+                    self.rawText,
+                    re.IGNORECASE)
+            
+            # Find longest tag string
+            tagStr = max(tagStrMatches)           
+            return tagStr
+
+        except:
+            raise Exception('Cannot find tag string')
+    
+    def __repr__(self):
+        return f'<{", ".join(self.tagList)}>'
     
 
 class Interview:
     def __init__(self, name, text):
         self.name = name
         self.rawText = text
-        self.rawTags = self.findTags(text)
+        self.tags = self.extractTags()
         
-    def finRawTags(self, str):
-        openingTags = list(re.finditer('(<[^/][^<]+>)', str))
-        closingTags = list(re.finditer('(</..>)', str))
-        return openingTags, closingTags
-
-    def findHighestTagLevel(self, openingTags, closingTags):
-    
-        maxOpening = 0
-        findStr = 'level='
-        for tag in openingTags:
-            tagStr = tag.group() 
-            start = tagStr.find(findStr) + len(findStr) + 1
-            end = start + 1
-            level = tagStr[start:end]
-            
-            if maxOpening < int(level):
-                maxOpening = int(level)
-            
-        maxClosing = 0
-        findStr = '</'        
-        for tag in closingTags:
-            tagStr = tag.group()
-            start = tagStr.find(findStr) + len(findStr) + 1
-            end = start + 1
-            level = tagStr[start:end]
-            
-            if maxClosing < int(level):
-                maxClosing = int(level)
-                    
-        # check that maxOpeningLevel == maxClosingLevel
-        assert (maxClosing == maxOpening), 'Max opening tag level must equal max closing tag level'
+    def findRawTags(self):
+        openingTags = list(re.finditer('(<[^/][^<]+>)', self.rawText))
+        closingTags = list(re.finditer('(</..>)', self.rawText))
+        return openingTags, closingTags   
         
-        return maxOpening
-    
-    
     def extractTags(self):
         
-        for interview in self.interviews:
-            rawTags = self.findTags(interview.rawText)
+        openingTags, closingTags = self.findRawTags()
+        openingTags = deque(openingTags)
+                
+        # Find matching opening and closing tags
+        tags = []
+        while openingTags:
+            openTag = openingTags.popleft()
             
-            print(rawTags)
-            
-            interview.rawTags = rawTags
-            
-            highestTagLevel = self.findHighestTagLevel(rawTags)
+            tagId = re.search(
+                'id[" "]{0,10}=[" "]{0,10}(.*?)[" "]{0,10},',
+                openTag.group(0),
+                re.IGNORECASE) 
+
+            # If no Id is assigned, assume closing tag is next tag 
+            if tagId is None:
+                closeTag = closingTags.pop(0)
+                                  
+                tags.append(
+                    Tag(
+                        startIdx = openTag.end(),
+                        endIdx = closeTag.end(),
+                        rawText = self.rawText[openTag.start():closeTag.end()]
+                    )
+                ) 
+                 
+            # If tag id has been defined, find first closing tag with matching id
+            else:
+                for idx, closeTag in enumerate(closingTags):
+                    closeId = re.search(
+                        '<[" "]{0,10}/[" "]{0,10}(.*?)[" "]{0,10}>',
+                        openTag.group(0),
+                        re.IGNORECASE)
+                    
+                    if closeId == tagId:
+                        closeTag = closingTags.pop(idx)
+                    
+                tags.append(
+                    Tag(
+                        startIdx = openTag.start(),
+                        endIdx = closeTag.end(),
+                        rawText = self.rawText[openTag.Start():closeTag.end()]
+                    )
+                )  
+        return tags
     
-    """
-    Data class containing all interview data
-    """
-
-class Tag:
-    def __init__(self, level=None):
-        
-        self.level = level
-        
-        # Write function that parses opening tag
-        
-        # Write function that parses closing tag
+    def allTags(self):
+        allTags = {}
+        for tagObj in self.tags:                      
+            for tag in tagObj.tagList:
+                
+                #breakpoint()
+                
+                if tag in allTags.keys():
+                    allTags[tag].append(tagObj.text)
+                else:
+                    allTags[tag] = [tagObj.text]
+        return allTags
     
-    def readOpeningTag():
-        return
     
-    def readClosingTag():        
-        return
-
-
-def extractTagLevels():
-    
-    # Find all 
-    
-    return
-
-
-
-def assignTagIds():
- 
-    return
-
 class ThemanticAnalysis:
     def __init__(self, fileList):
         """
@@ -172,26 +188,6 @@ class ThemanticAnalysis:
 
         return interviews
     
-            
-
-            
-            # Extract tags, start with highest tag level
-            
-             
-    
-    # def findTagLocations(self):    
-            
-    #     # Find starts and ends of tags       
-    #     tagsStartIdx = {x.group()[4:7]: x.start() for x in re.finditer('<id....', file)}
-    #     tagsEndIdx = {x.group()[2:5]: x.start() for x in re.finditer('</...>', file)}
-        
-    #     # Check that there are equal amount of open and close tags
-    #     test = len(tagsStartIdx) == len(tagsEndIdx)
-    #     assert (test), 'Number of opening tags must match number of closing tags' 
-        
-    #     tagsIdx = {key:(tagsStartIdx[key], tagsEndIdx[key]) for key, val in tagsStartIdx.items()} 
-        
-    #     return tagsIdx
         
 
 if __name__ == '__main__': 
