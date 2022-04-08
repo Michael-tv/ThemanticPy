@@ -176,7 +176,6 @@ class ThemanticAnalysis:
             with open(file, 'r') as fileObj:
                 fileContent = fileObj.readlines()
                 
-            #TODO Some filecleaning is reaquired here, strip ending spaces etc...
             fileContentStr = ' '.join(fileContent)  
             
             interviews.append(
@@ -191,10 +190,14 @@ class ThemanticAnalysis:
         
 
 if __name__ == '__main__': 
-    #C:\Users\michael.victor\Dropbox\Transcription
-    fileList = ['C:/Users/michael.victor/Dropbox/Transcription/test_interview.txt']
+    fileList = [
+        'C:/Users/michael.victor/Dropbox/Transcription/test_interview.txt',
+        'C:/Users/michael.victor/Dropbox/Transcription/test_interview_2.txt'
+        ]
     
     analysis = ThemanticAnalysis(fileList)
+    
+    
     
     
 
