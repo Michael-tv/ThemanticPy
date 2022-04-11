@@ -28,19 +28,31 @@ class ThemanticAnalysis:
         dictOfFiles : dictionary of all files to be included in analysis
             {descriptive name: path to file}
         """
-        
-        self.projectLocation = projectLocation
-        self.interviews = []        
 
-        self.readData()  
-                 
-    
-    def readData(self):
+        self.interviews = []
+        self.projectLocation = projectLocation
+        self.framework = self.readFramework() 
+        self.interviews = self.readInterviews()
+ 
+
+        self.model = self.extractData()
+
+    def extractData(self):
         
-        projectData = self.readYaml()
+        #TODO: Create tree structure of all data, codes, categories, themes
+        
+        # This can be a network
+        
+        return model
+
+    def readFramework(self):
+        framework = self.readYaml()
+        return framework
+    
+    def readInterviews(self):
     
         interviewList = []
-        for interview in projectData:
+        for interview in self.framework:
             
             # Get interview Text
             file = f'{self.projectLocation}/interviews/{interview["file"]}'
@@ -59,7 +71,7 @@ class ThemanticAnalysis:
                     file = file,
                     name = interview['interview'],
                     text = interviewText,
-                    frameWork = interview['code framework'], 
+                    framework = interview['code framework'], 
                     tags = tags                  
                 )
             )
@@ -145,14 +157,15 @@ class Interview:
     def __init__(self, file, name, text, framework, tags):
         self.file = file
         self.name = name
-        self.text = text
         self.framework = framework
-        self.rawText = self.readFile()
+        self.rawText = text
         self.tags = tags
   
   
     #TODO: function that creates codes from tags and framework 
-    
+    def createCodes(self):
+        
+        return
     
     def processTags(self, modelCodes, textCodes):
         
@@ -172,7 +185,6 @@ class Interview:
                 endIdx = 1,
             )
     
-        
         return 
     
     # def allTags(self):
