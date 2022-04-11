@@ -1,12 +1,9 @@
 from collections import deque
-from logging import exception
 import re
 import glob
-
 from collections import deque
 
-from yaml import full_load_all, SafeLoader
-
+from yaml import full_load_all
 
 """
 Tag description
@@ -16,70 +13,6 @@ tag id is assigned automatically, in the background, just level needs to be spec
 Tone = N negative, P = positive, N = Neutral
 
 """
-
-
-class Tag:
-    """
-    Data Class to store all tag information
-    """
-    def __init__(self, tag, startIdx, endIdx, rawText):
-        self.tag = tag
-        self.startIdx = startIdx
-        self.endIdx = endIdx
-        self.rawTextList = rawText
-    
-    def __repr__(self):
-        return f'<{self.tag}>'
-    
-
-class Interview:
-    def __init__(self, file, name, text, framework, tags):
-        self.file = file
-        self.name = name
-        self.text = text
-        self.framework = framework
-        self.rawText = self.readFile()
-        self.tags = tags
-  
-  
-    #TODO: function that creates codes from tags and framework 
-    
-    
-    def processTags(self, modelCodes, textCodes):
-        
-        for code in modelCodes:
-            
-            # Extract text codes
-            codeStrings = []
-            for item in textCodes:
-                if item['tag'] == code:
-                    codeStrings.append(item)
-
-            # Create code
-            testing = Tag(
-                description = modelCodes['definition'],
-                definition = modelCodes[''],
-                startIds = 1,
-                endIdx = 1,
-            )
-    
-        
-        return 
-    
-    # def allTags(self):
-    #     allTags = {}
-    #     for tagObj in self.tags:                      
-    #         for tag in tagObj.tagList:
-                
-    #             #breakpoint()
-                
-    #             if tag in allTags.keys():
-    #                 allTags[tag].append(tagObj.text)
-    #             else:
-    #                 allTags[tag] = [tagObj.text]
-    #     return allTags
-    
-    
 class ThemanticAnalysis:
     def __init__(self, projectLocation):
         """
@@ -206,6 +139,69 @@ class ThemanticAnalysis:
             for doc in file:
                 projectData.append(doc)
         return projectData
+
+
+class Interview:
+    def __init__(self, file, name, text, framework, tags):
+        self.file = file
+        self.name = name
+        self.text = text
+        self.framework = framework
+        self.rawText = self.readFile()
+        self.tags = tags
+  
+  
+    #TODO: function that creates codes from tags and framework 
+    
+    
+    def processTags(self, modelCodes, textCodes):
+        
+        for code in modelCodes:
+            
+            # Extract text codes
+            codeStrings = []
+            for item in textCodes:
+                if item['tag'] == code:
+                    codeStrings.append(item)
+
+            # Create code
+            testing = Tag(
+                description = modelCodes['definition'],
+                definition = modelCodes[''],
+                startIds = 1,
+                endIdx = 1,
+            )
+    
+        
+        return 
+    
+    # def allTags(self):
+    #     allTags = {}
+    #     for tagObj in self.tags:                      
+    #         for tag in tagObj.tagList:
+                
+    #             #breakpoint()
+                
+    #             if tag in allTags.keys():
+    #                 allTags[tag].append(tagObj.text)
+    #             else:
+    #                 allTags[tag] = [tagObj.text]
+    #     return allTags
+    
+    
+class Tag:
+    """
+    Data Class to store all tag information
+    """
+    def __init__(self, tag, startIdx, endIdx, rawText):
+        self.tag = tag
+        self.startIdx = startIdx
+        self.endIdx = endIdx
+        self.rawTextList = rawText
+    
+    def __repr__(self):
+        return f'<{self.tag}>'
+    
 
 #==============================================================================#       
 
