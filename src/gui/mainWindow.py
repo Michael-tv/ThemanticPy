@@ -27,15 +27,16 @@ class mainWidget(QWidget):
 
         self.layout = QHBoxLayout()
         
+        self.tree = self.createTreeView()
+        self.layout.addWidget(self.tree, stretch=1) 
+
         self.editor = self.createEditor()
         self.layout.addWidget(self.editor, stretch=1)
         
-        self.tree = self.createTreeView()
-        self.layout.addWidget(self.tree, stretch=1)       
+        self.setLayout(self.layout)      
     
     def createEditor(self):
         return QTextEdit(self)
-    
         
     def createTreeView(self):
         treeView = QTreeView(self)
