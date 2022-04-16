@@ -1,6 +1,10 @@
 from collections import deque
 import re
 import glob
+import copy
+
+#TODO: remove tags from rawText in tags, do function in side tag to do this 
+
 
 from yaml import full_load_all
 
@@ -33,47 +37,47 @@ class ThemanticAnalysis:
         self.interviews = self.readInterviews()
  
 
-        self.model = self.extractData()
+        #self.model = self.extractData()
 
 
-    def extractData(self):
+    # def extractData(self):
         
-        #TODO: Create tree structure of all data, codes, categories, themes
+    #     #TODO: Create tree structure of all data, codes, categories, themes
         
-        # Generate Codes
+    #     # Generate Codes
         
         
-        #TODO: Could also do this by looping over all known tags in framework
+    #     #TODO: Could also do this by looping over all known tags in framework
         
-        # Extract all tags
-        allTags = []
-        for interview in self.interviews:
-            allTags.extend(interview.tags)
+    #     # Extract all tags
+    #     allTags = []
+    #     for interview in self.interviews:
+    #         allTags.extend(interview.tags)
         
-        # Create set of all tags
-        #TODO: Create function that creates new list or appends if list exists
-        setAllTags = {}
-        for tag in allTags:
-            if setAllTags.get(tag.tag):
-                setAllTags[tag.tag].append(tag)
-            else:
-                setAllTags[tag.tag] = [tag]
+    #     # Create set of all tags
+    #     #TODO: Create function that creates new list or appends if list exists
+    #     setAllTags = {}
+    #     for tag in allTags:
+    #         if setAllTags.get(tag.tag):
+    #             setAllTags[tag.tag].append(tag)
+    #         else:
+    #             setAllTags[tag.tag] = [tag]
         
-        codes = []
-        for codeName in setAllTags:
-            codes.append(
-                Code(
-                    code = codeName,
-                )
-            )
+    #     codes = []
+    #     for codeName in setAllTags:
+    #         codes.append(
+    #             Code(
+    #                 code = codeName,
+    #             )
+    #         )
         
-        breakpoint()
+    #     breakpoint()
         
-        model = []
+    #     model = []
         
-        # This can be a network
+    #     # This can be a network
         
-        return model
+    #     return model
 
 
     def readFramework(self):
@@ -124,8 +128,7 @@ class ThemanticAnalysis:
         openingTags = deque(openingTags)
         
         # Find matching opening and closing tags
-        tags = []
-        
+        tags = {}
         while openingTags:
             openTag = openingTags.popleft()
             
@@ -136,15 +139,7 @@ class ThemanticAnalysis:
 
             # If no Id is assigned, assume closing tag is next tag 
             if tagId is None:
-                closeTag = closingTags.pop(0)                   
-                tags.append(
-                    Tag(
-                        tag = openTag.group(0)[1:-1],
-                        startIdx = openTag.end(),
-                        endIdx = closeTag.end(),
-                        rawText = interviewText[openTag.start():closeTag.end()]
-                    )
-                )
+                closeTag = closingTags.pop(0) 
 
             # If tag id has been defined, find first closing tag with matching id
             else:
@@ -156,17 +151,19 @@ class ThemanticAnalysis:
                     
                     if closeId == tagId:
                         closeTag = closingTags.pop(idx)
-                    
-                tags.append(
-                    Tag(
-                        tag = openTag.group(0)[1:-1],
-                        startIdx = openTag.end(),
-                        endIdx = closeTag.end(),
-                        rawText = interviewText[openTag.start():closeTag.end()]
-                    )
-                )
+            
+            tagObj = Tag(
+                tag = openTag.group(0)[1:-1],
+                startIdx = openTag.end(),
+                endIdx = closeTag.end(),
+                rawText = interviewText[openTag.start():closeTag.end()]
+            )
+            tags = dictOfListsAppend(
+                dict = tags,
+                key = openTag.group(0)[1:-1],
+                val = tagObj
+            )  
                 
-
         return tags # [{'tag': {description: 'code definition', 'tagged text': text that has been tagged}}]    
         
         
@@ -197,70 +194,84 @@ class Interview:
         self.rawText = text
         self.tags = tags
   
+        self.codes = self.processCodes()
   
-    #TODO: function that creates codes from tags and framework 
-    def createCodes(self):
+    def processCodes(self):
         
-        return
-    
-    def processTags(self, modelCodes, textCodes):
-        
-        for code in modelCodes:
+        # Master list of codes, combined from interview text and framework
+        listOfCodes = set(list(self.framework.keys()) + list(self.tags.keys()))
+        codes = []
+        for code in listOfCodes:           
+            # Get code properties
             
-            # Extract text codes
-            codeStrings = []
-            for item in textCodes:
-                if item['tag'] == code:
-                    codeStrings.append(item)
-
-            # Create code
-            testing = Tag(
-                description = modelCodes['definition'],
-                definition = modelCodes[''],
-                startIds = 1,
-                endIdx = 1,
+            if self.framework.get(code):
+                definition = self.framework[code]['code definition'] 
+            else:
+                definition = None
+            
+            if self.tags.get(code) is not None:
+                tags = self.tags[code]
+            else:
+                tags = [] 
+            
+            codes.append(
+                Code(
+                    code = code,
+                    definition = definition,
+                    tags = tags
+                )
             )
+              
+        return codes
     
-        return 
-    
-    # def allTags(self):
-    #     allTags = {}
-    #     for tagObj in self.tags:                      
-    #         for tag in tagObj.tagList:
-                
-    #             #breakpoint()
-                
-    #             if tag in allTags.keys():
-    #                 allTags[tag].append(tagObj.text)
-    #             else:
-    #                 allTags[tag] = [tagObj.text]
-    #     return allTags
-    
-
-
-        """
-        add all tags to dictionary, add tags to code
+    # def processTags(self, modelCodes, textCodes):
         
-        """
+    #     for code in modelCodes:
+            
+    #         # Extract text codes
+    #         codeStrings = []
+    #         for item in textCodes:
+    #             if item['tag'] == code:
+    #                 codeStrings.append(item)
+
+    #         # Create code
+    #         testing = Tag(
+    #             description = modelCodes['definition'],
+    #             definition = modelCodes[''],
+    #             startIds = 1,
+    #             endIdx = 1,
+    #         )
     
+    #     return 
+        
+        
 class Tag:
     """
     Data Class to store all tag information
     """
     def __init__(self, tag, startIdx, endIdx, rawText):
-        self.tag = tag
         self.startIdx = startIdx
         self.endIdx = endIdx
-        self.rawTextList = rawText
+        self.rawText = rawText
+        self.text = self.cleanRawText(rawText)
+    
+    def cleanRawText(self, rawText):
+        text = re.sub('<.*?>', '', rawText)
+        return text
     
     def __repr__(self):
-        return f'<{self.tag}>'
+        return f'<{self.text}>'
+    
     
 class Code:
-    def __init__(self, code, definition=None):
+    def __init__(self, code, definition=None, tags=None):
         self.code = code
         self.definition = definition
-        self.tags = []
+        self.tags = tags
+    
+    def __repr__(self):
+       return self.code
+             
         
 class Category:
     def __init__(self, category, definition=None):
@@ -268,11 +279,29 @@ class Category:
         self.definition = definition
         self.codes = []
 
+
 class Theme:
     def __init__(self, theme, definition=None):
         self.category = theme
         self.definition = definition
         self.categories = []
+
+
+
+
+
+def dictOfListsAppend(dict, key, val):
+    appendedDict = copy.deepcopy(dict)
+    if appendedDict.get(key):#  Check if key exists
+        if type(appendedDict[key]) is not list:# Check if value is a list ir a value
+            appendedDict[key] = [appendedDict[key], val]
+            return appendedDict
+        else:
+            appendedDict[key].append(val)
+            return appendedDict
+    else:
+        appendedDict[key] = [val]    
+        return appendedDict
 
 #==============================================================================#       
 
