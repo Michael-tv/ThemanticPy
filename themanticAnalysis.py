@@ -1,7 +1,6 @@
 from collections import deque
 import re
 import glob
-from collections import deque
 
 from yaml import full_load_all
 
@@ -16,7 +15,6 @@ Tone = N negative, P = positive, N = Neutral
 class ThemanticAnalysis:
     def __init__(self, projectLocation):
         """
-        
         process
          - read file(s)
          - id tags
@@ -37,20 +35,53 @@ class ThemanticAnalysis:
 
         self.model = self.extractData()
 
+
     def extractData(self):
         
         #TODO: Create tree structure of all data, codes, categories, themes
+        
+        # Generate Codes
+        
+        
+        #TODO: Could also do this by looping over all known tags in framework
+        
+        # Extract all tags
+        allTags = []
+        for interview in self.interviews:
+            allTags.extend(interview.tags)
+        
+        # Create set of all tags
+        #TODO: Create function that creates new list or appends if list exists
+        setAllTags = {}
+        for tag in allTags:
+            if setAllTags.get(tag.tag):
+                setAllTags[tag.tag].append(tag)
+            else:
+                setAllTags[tag.tag] = [tag]
+        
+        codes = []
+        for codeName in setAllTags:
+            codes.append(
+                Code(
+                    code = codeName,
+                )
+            )
+        
+        breakpoint()
+        
+        model = []
         
         # This can be a network
         
         return model
 
+
     def readFramework(self):
         framework = self.readYaml()
         return framework
     
-    def readInterviews(self):
     
+    def readInterviews(self):
         interviewList = []
         for interview in self.framework:
             
@@ -77,6 +108,7 @@ class ThemanticAnalysis:
             )
         return interviewList
 
+
     def findRawTags(self, openingTagFilterStr, closingTagFilterStr, interviewText):
         openingTags = list(re.finditer(openingTagFilterStr, interviewText))
         closingTags = list(re.finditer(closingTagFilterStr, interviewText))
@@ -85,7 +117,8 @@ class ThemanticAnalysis:
             return openingTags, closingTags
         else:
             raise Exception('Amount of opening tags should equal amount of closing tags')  
-        
+                
+
     def getTags(self, openingTags, closingTags, interviewText):
         
         openingTags = deque(openingTags)
@@ -132,14 +165,17 @@ class ThemanticAnalysis:
                         rawText = interviewText[openTag.start():closeTag.end()]
                     )
                 )
+                
 
         return tags # [{'tag': {description: 'code definition', 'tagged text': text that has been tagged}}]    
+        
         
     def readInterview(self, file):
         with open(file, 'r') as fileObj:
             fileContent = fileObj.readlines()
         fileContentStr = ' '.join(fileContent)
         return fileContentStr  
+        
         
     def readYaml(self):
         # Select first yaml file in project folder
@@ -200,6 +236,12 @@ class Interview:
     #                 allTags[tag] = [tagObj.text]
     #     return allTags
     
+
+
+        """
+        add all tags to dictionary, add tags to code
+        
+        """
     
 class Tag:
     """
@@ -214,6 +256,23 @@ class Tag:
     def __repr__(self):
         return f'<{self.tag}>'
     
+class Code:
+    def __init__(self, code, definition=None):
+        self.code = code
+        self.definition = definition
+        self.tags = []
+        
+class Category:
+    def __init__(self, category, definition=None):
+        self.category = category
+        self.definition = definition
+        self.codes = []
+
+class Theme:
+    def __init__(self, theme, definition=None):
+        self.category = theme
+        self.definition = definition
+        self.categories = []
 
 #==============================================================================#       
 
