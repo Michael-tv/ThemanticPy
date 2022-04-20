@@ -1,12 +1,11 @@
-from collections import deque
 import re
 import glob
 import copy
 
-#TODO: remove tags from rawText in tags, do function in side tag to do this 
-
-
 from yaml import full_load_all
+
+#TODO: Write function to put *** *** around unmatched tags and write out as a separate text file or write back to original interview file (dont know how to manage lines here)
+
 
 """
 Tag description
@@ -36,50 +35,7 @@ class ThemanticAnalysis:
         self.framework = self.readFramework() 
         self.interviews = self.readInterviews()
  
-
-        #self.model = self.extractData()
-
-
-    # def extractData(self):
-        
-    #     #TODO: Create tree structure of all data, codes, categories, themes
-        
-    #     # Generate Codes
-        
-        
-    #     #TODO: Could also do this by looping over all known tags in framework
-        
-    #     # Extract all tags
-    #     allTags = []
-    #     for interview in self.interviews:
-    #         allTags.extend(interview.tags)
-        
-    #     # Create set of all tags
-    #     #TODO: Create function that creates new list or appends if list exists
-    #     setAllTags = {}
-    #     for tag in allTags:
-    #         if setAllTags.get(tag.tag):
-    #             setAllTags[tag.tag].append(tag)
-    #         else:
-    #             setAllTags[tag.tag] = [tag]
-        
-    #     codes = []
-    #     for codeName in setAllTags:
-    #         codes.append(
-    #             Code(
-    #                 code = codeName,
-    #             )
-    #         )
-        
-    #     breakpoint()
-        
-    #     model = []
-        
-    #     # This can be a network
-        
-    #     return model
-
-
+ 
     def readFramework(self):
         framework = self.readYaml()
         return framework
@@ -91,81 +47,18 @@ class ThemanticAnalysis:
             
             # Get interview Text
             file = f'{self.projectLocation}/interviews/{interview["file"]}'
-            interviewText = self.readInterview(file)
-
-            # Extract interview Codes            
-            openingTags, closingTags =  self.findRawTags(
-                interviewText = interviewText,
-                openingTagFilterStr='<{1}[^/<]+>{1}',
-                closingTagFilterStr='</{1}[^<>]+>{1}'
-            )   
-            tags = self.getTags(openingTags, closingTags, interviewText)                
+            interviewText = self.readInterview(file)            
                         
             interviewList.append(
                 Interview(
                     file = file,
                     name = interview['interview'],
                     text = interviewText,
-                    framework = interview['code framework'], 
-                    tags = tags                  
+                    framework = interview['code framework'],      
                 )
             )
         return interviewList
-
-
-    def findRawTags(self, openingTagFilterStr, closingTagFilterStr, interviewText):
-        openingTags = list(re.finditer(openingTagFilterStr, interviewText))
-        closingTags = list(re.finditer(closingTagFilterStr, interviewText))
-        
-        if len(openingTags) == len(closingTags):                
-            return openingTags, closingTags
-        else:
-            raise Exception('Amount of opening tags should equal amount of closing tags')  
-                
-
-    def getTags(self, openingTags, closingTags, interviewText):
-        
-        openingTags = deque(openingTags)
-        
-        # Find matching opening and closing tags
-        tags = {}
-        while openingTags:
-            openTag = openingTags.popleft()
-            
-            tagId = re.search(
-                'id[" "]{0,10}=[" "]{0,10}(.*?)[" "]{0,10},',
-                openTag.group(0),
-                re.IGNORECASE) 
-
-            # If no Id is assigned, assume closing tag is next tag 
-            if tagId is None:
-                closeTag = closingTags.pop(0) 
-
-            # If tag id has been defined, find first closing tag with matching id
-            else:
-                for idx, closeTag in enumerate(closingTags):
-                    closeId = re.search(
-                        '<[" "]{0,10}/[" "]{0,10}(.*?)[" "]{0,10}>',
-                        openTag.group(0),
-                        re.IGNORECASE)
-                    
-                    if closeId == tagId:
-                        closeTag = closingTags.pop(idx)
-            
-            tagObj = Tag(
-                tag = openTag.group(0)[1:-1],
-                startIdx = openTag.end(),
-                endIdx = closeTag.end(),
-                rawText = interviewText[openTag.start():closeTag.end()]
-            )
-            tags = dictOfListsAppend(
-                dict = tags,
-                key = openTag.group(0)[1:-1],
-                val = tagObj
-            )  
-                
-        return tags # [{'tag': {description: 'code definition', 'tagged text': text that has been tagged}}]    
-        
+             
         
     def readInterview(self, file):
         with open(file, 'r') as fileObj:
@@ -187,14 +80,93 @@ class ThemanticAnalysis:
 
 
 class Interview:
-    def __init__(self, file, name, text, framework, tags):
+    def __init__(self, file, name, text, framework):
         self.file = file
         self.name = name
         self.framework = framework
         self.rawText = text
-        self.tags = tags
+        
+        matchedTags, unmatchedOpeningTags, unmatchedClosingTags = self.extractTags()
+        
+        self.tags = matchedTags
+        self.unmatchedOpeningTags = unmatchedOpeningTags
+        self.unmatchedClosingTags = unmatchedClosingTags
   
         self.codes = self.processCodes()
+        
+        
+    def extractTags(self):
+    
+        openingTags, closingTags = self.findRawTags(
+            interviewText = self.rawText,
+            openingTagFilterStr='<{1}[^/<]+>{1}',
+            closingTagFilterStr='</{1}[^<>]+>{1}')
+        
+        matchedTags = {}
+        unmatchedOpeningTags = []
+        unmatchedClosingTags = []
+        while openingTags and closingTags:
+            openingTag = openingTags.pop(0)
+            match = self.matchTag(openingTag, closingTags)
+            if match is not None:            
+                closingTagIdx, closingTag = match
+                closingTags.pop(closingTagIdx)
+                
+                matchedTags = dictOfListsAppend(
+                    dict = matchedTags,
+                    key = openingTag.group(0)[1:-1],
+                    val = (openingTag, closingTag))
+                #matchedTags.append((openingTag, closingTag))
+            else:
+                unmatchedOpeningTags.append(openingTag)
+        
+        # Add remaining tags to unmatched list
+        unmatchedOpeningTags.extend(unmatchedOpeningTags)
+        unmatchedClosingTags.extend(unmatchedClosingTags)       
+        
+        return matchedTags, unmatchedOpeningTags, unmatchedClosingTags    
+    
+    
+    def findRawTags(self, openingTagFilterStr, closingTagFilterStr, interviewText):
+        openingTags = list(re.finditer(openingTagFilterStr, interviewText))
+        closingTags = list(re.finditer(closingTagFilterStr, interviewText))
+        return openingTags, closingTags  
+    
+    
+    def matchTag(self, openingTag, closingTags):
+        openingTagName = openingTag.group(0)[1:-1]  
+       
+        openingTagId = self.extractTagText(
+            pat = 'id[" "]{0,10}=[" "]{0,10}(.*?)[" "]{0,10},',
+            text = openingTag.group(0),
+            idxs = (1,-1))
+        
+        # Find first tag with matching name and id
+        for idx, closingTag in enumerate(closingTags):
+            
+            closingTagName = self.extractTagText(
+                pat =  f'</{openingTagName}>',
+                text = closingTag.group(0),
+                idxs = (2,-1))         
+            
+            closingTagId = self.extractTagText(
+                pat =  'id[" "]{0,10}=[" "]{0,10}(.*?)[" "]{0,10},',
+                text = closingTag.group(0),
+                idxs = (2,-1))    
+                            
+            if (openingTagName == closingTagName) & (closingTagId == openingTagId):
+                return idx, closingTag
+    
+    
+    def extractTagText(self, pat, text, idxs=None):
+        result = re.search(pat, text, re.IGNORECASE)         
+        if result is not None:
+            result = result.group(0)
+            if idxs is not None:
+                return result[idxs[0]:idxs[1]]
+            else:
+                return result
+
   
     def processCodes(self):
         
@@ -223,27 +195,7 @@ class Interview:
             )
               
         return codes
-    
-    # def processTags(self, modelCodes, textCodes):
-        
-    #     for code in modelCodes:
-            
-    #         # Extract text codes
-    #         codeStrings = []
-    #         for item in textCodes:
-    #             if item['tag'] == code:
-    #                 codeStrings.append(item)
-
-    #         # Create code
-    #         testing = Tag(
-    #             description = modelCodes['definition'],
-    #             definition = modelCodes[''],
-    #             startIds = 1,
-    #             endIdx = 1,
-    #         )
-    
-    #     return 
-        
+     
         
 class Tag:
     """
@@ -270,7 +222,7 @@ class Code:
         self.tags = tags
     
     def __repr__(self):
-       return self.code
+       return f'<{self.code}>'
              
         
 class Category:
@@ -285,9 +237,6 @@ class Theme:
         self.category = theme
         self.definition = definition
         self.categories = []
-
-
-
 
 
 def dictOfListsAppend(dict, key, val):
