@@ -15,6 +15,9 @@ tag id is assigned automatically, in the background, just level needs to be spec
 Tone = N negative, P = positive, N = Neutral
 
 """
+
+
+
 class ThemanticAnalysis:
     def __init__(self, projectLocation):
         """
@@ -77,6 +80,7 @@ class ThemanticAnalysis:
             for doc in file:
                 projectData.append(doc)
         return projectData
+
 
 
 class Interview:
@@ -196,6 +200,7 @@ class Interview:
               
         return codes
      
+     
         
 class Tag:
     """
@@ -215,6 +220,7 @@ class Tag:
         return f'<{self.text}>'
     
     
+    
 class Code:
     def __init__(self, code, definition=None, tags=None):
         self.code = code
@@ -223,6 +229,7 @@ class Code:
     
     def __repr__(self):
        return f'<{self.code}>'
+       
              
         
 class Category:
@@ -230,6 +237,7 @@ class Category:
         self.category = category
         self.definition = definition
         self.codes = []
+
 
 
 class Theme:
@@ -251,28 +259,3 @@ def dictOfListsAppend(dict, key, val):
     else:
         appendedDict[key] = [val]    
         return appendedDict
-
-#==============================================================================#       
-
-if __name__ == '__main__': 
-    
-    projectLocation = 'C:/Users/michael.victor/Dropbox/interview project'
-
-    analysis = ThemanticAnalysis(projectLocation)
-    
-    
-    
-    
-
-# TODO: next steps in analysing links and relationships between interviewers and assigned tags        
-
-"""
-see following links for data analysis
-https://datavizcatalogue.com/index.html_
-https://datavizcatalogue.com/methods/wordcloud.html
-https://datavizcatalogue.com/methods/parallel_coordinates.html
-https://datavizcatalogue.com/methods/radar_chart.html
-
-check relationships between team size, experience, industry, etc
-
-"""
