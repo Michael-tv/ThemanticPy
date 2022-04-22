@@ -6,7 +6,7 @@ from yaml import full_load_all
 
 #TODO: Write function to put *** *** around unmatched tags and write out as a separate text file or write back to original interview file (dont know how to manage lines here)
 
-
+#TODO: add parameter to limit lines to be processed for the interview or place line seperator characters in joined string that can be used to find the error with tags
 """
 Tag description
 tag id is assigned automatically, in the background, just level needs to be specified
@@ -100,32 +100,32 @@ class Interview:
         
         
     def extractTags(self):
-    
         openingTags, closingTags = self.findRawTags(
             interviewText = self.rawText,
-            openingTagFilterStr='<{1}[^/<]+>{1}',
-            closingTagFilterStr='</{1}[^<>]+>{1}')
-        
+            openingTagFilterStr='<[^/].+?>',
+            closingTagFilterStr='</.+?>')
+               
         matchedTags = {}
         unmatchedOpeningTags = []
         unmatchedClosingTags = []
+        idx = 0
+        openingTagCount = len(openingTags)
         while openingTags and closingTags:
             openingTag = openingTags.pop(0)
             match = self.matchTag(openingTag, closingTags)
             if match is not None:            
-                closingTagIdx, closingTag = match
-                closingTags.pop(closingTagIdx)
+                closingTags, closingTag = match
                 
                 matchedTags = dictOfListsAppend(
                     dict = matchedTags,
                     key = openingTag.group(0)[1:-1],
                     val = (openingTag, closingTag))
-                #matchedTags.append((openingTag, closingTag))
             else:
+                print(f'tag Number {idx} of {openingTagCount}')
                 unmatchedOpeningTags.append(openingTag)
+            idx += 1
         
         # Add remaining tags to unmatched list
-        unmatchedOpeningTags.extend(unmatchedOpeningTags)
         unmatchedClosingTags.extend(unmatchedClosingTags)       
         
         return matchedTags, unmatchedOpeningTags, unmatchedClosingTags    
@@ -138,29 +138,42 @@ class Interview:
     
     
     def matchTag(self, openingTag, closingTags):
-        openingTagName = openingTag.group(0)[1:-1]  
+            
+        openingTagName = self.extractTagText(
+            pat = '<[^/].+?[|>]',
+            text = openingTag.group(0),
+            idxs = (1,-1)).strip()
+        
+        openingTag.group(0)[1:-1]
        
         openingTagId = self.extractTagText(
-            pat = 'id[" "]{0,10}=[" "]{0,10}(.*?)[" "]{0,10},',
+            pat = 'id[" "]*=[" "]*(.*?)[" "]*>',
             text = openingTag.group(0),
             idxs = (1,-1))
         
         # Find first tag with matching name and id
-        for idx, closingTag in enumerate(closingTags):
+        idx = 0
+        closingTags = closingTags[:]
+        while (len(closingTags) > 0) and (idx < len(closingTags)):
+            
+            closingTag = closingTags[idx]
             
             closingTagName = self.extractTagText(
-                pat =  f'</{openingTagName}>',
+                pat =  '</.+?[|>]',
                 text = closingTag.group(0),
-                idxs = (2,-1))         
+                idxs = (2,-1)).strip()  
             
             closingTagId = self.extractTagText(
-                pat =  'id[" "]{0,10}=[" "]{0,10}(.*?)[" "]{0,10},',
+                pat =  'id[" "]*=[" "]*(.*?)[" "]*>',
                 text = closingTag.group(0),
                 idxs = (2,-1))    
-                            
+            
             if (openingTagName == closingTagName) & (closingTagId == openingTagId):
-                return idx, closingTag
-    
+                closingTags.pop(idx)
+                return closingTags, closingTag  
+            else:
+                idx += 1      
+            
     
     def extractTagText(self, pat, text, idxs=None):
         result = re.search(pat, text, re.IGNORECASE)         
