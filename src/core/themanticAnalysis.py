@@ -184,6 +184,15 @@ class Interview:
             else:
                 return result
 
+
+    def convertTagsToText(self, tags):
+        textTags = []
+        for tagPair in tags:
+            start = tagPair[0].span()[1]# end of first tag is start of text
+            end = tagPair[1].span()[0]# start of first tag is end of text
+            textTags.append(self.rawText[start:end])
+        return textTags
+
   
     def processCodes(self):
         
@@ -207,30 +216,31 @@ class Interview:
                 Code(
                     code = code,
                     definition = definition,
-                    tags = tags
+                    tags = self.convertTagsToText(tags)
                 )
             )
               
         return codes
      
      
-        
-class Tag:
-    """
-    Data Class to store all tag information
-    """
-    def __init__(self, tag, startIdx, endIdx, rawText):
-        self.startIdx = startIdx
-        self.endIdx = endIdx
-        self.rawText = rawText
-        self.text = self.cleanRawText(rawText)
+#TODO: Maybe this should still be used??? just pass tags to codes, could add lots of logic neatly here
+# 
+# class Tag:
+#     """
+#     Data Class to store all tag information
+#     """
+#     def __init__(self, tag, startIdx, endIdx, rawText):
+#         self.startIdx = startIdx
+#         self.endIdx = endIdx
+#         self.rawText = rawText
+#         self.text = self.cleanRawText(rawText)
     
-    def cleanRawText(self, rawText):
-        text = re.sub('<.*?>', '', rawText)
-        return text
+#     def cleanRawText(self, rawText):
+#         text = re.sub('<.*?>', '', rawText)
+#         return text
     
-    def __repr__(self):
-        return f'<{self.text}>'
+#     def __repr__(self):
+#         return f'<{self.text}>'
     
     
     
@@ -239,6 +249,7 @@ class Code:
         self.code = code
         self.definition = definition
         self.tags = tags
+    
     
     def __repr__(self):
        return f'<{self.code}>'
