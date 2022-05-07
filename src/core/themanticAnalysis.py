@@ -4,6 +4,15 @@ import copy
 
 from yaml import full_load_all
 
+
+#! Next Steps
+
+#TODO: Write functions to update model based on work done in analysis
+
+#TODO: Start with network functions
+    #TODO: network showing dag of theme
+    #TODO: network showing codes, categories and themes to interviews 
+
 #TODO: Write function to put *** *** around unmatched tags and write out as a separate text file or write back to original interview file (dont know how to manage lines here)
 
 #TODO: add parameter to limit lines to be processed for the interview or place line seperator characters in joined string that can be used to find the error with tags
@@ -16,6 +25,7 @@ Tone = N negative, P = positive, N = Neutral
 
 """
 
+#TODO: Save tagged codes to code framework in model.yaml file!
 
 
 class ThemanticAnalysis:
@@ -35,32 +45,107 @@ class ThemanticAnalysis:
 
         self.interviews = []
         self.projectLocation = projectLocation
-        self.framework = self.readFramework() 
-        self.interviews = self.readInterviews()
- 
- 
-    def readFramework(self):
-        framework = self.readYaml()
-        return framework
-    
-    
-    def readInterviews(self):
-        interviewList = []
-        for interview in self.framework:
+
+        projectData = self.readProjectData()
+        # Break project data into constituent parts
+        interviews = []
+        for document in projectData:
+            if 'project' in document.keys():
+                self.project = document
+            elif 'interview' in document.keys():
+                interviews.append(document)
+            elif 'code framework' in document.keys():
+                self.codeFramework = document
+            elif 'category framework' in document.keys():
+                self.categoryFramework = document
+            elif 'theme framework' in document.keys():
+                self.themeFramework = document 
+       
+        self.codes = []
+        self.unusedCodes = []
+        self.interviews = self.readInterviews(interviews)
+
+        self.updateCodeFramework()
+
+
+    def updateCodeFramework(self):
+        
+        taggedCodes = self.readInterviewCodes()
+        
+        taggedCodeList = [code.code for code in taggedCodes]
+        
+        # get codes from code framework and unused codes
+        frameworkCodeDict = self.codeFramework.get('code framework')
+        unusedCodeDict = self.codeFramework.get('unused codes')
+        
+        unusedCodes = {}
+        if frameworkCodeDict != None:
+            if unusedCodeDict != None:
+                frameworkCodeDict.update(unusedCodeDict)
             
-            # Get interview Text
+            for code, info in frameworkCodeDict.items():
+                if code in taggedCodeList:
+                    idx = taggedCodeList.index(code)
+                    taggedCodes[idx].updateCodeInfo(info)
+                else:
+                    unusedCodes.update({code: info})
+      
+        self.codes = taggedCodes
+        self.unusedCodes = unusedCodes
+      
+        
+    def readInterviewCodes(self):
+        codes = []
+        for interview in self.interviews:
+            for tag in interview.tags:               
+                if tag.tag in [code.code for code in codes]:
+                    idx = [code.code for code in codes].index(tag.tag)
+                    codes[idx].addTag(tag)# Add type check to tag adding element
+                else:
+                    codes.append(
+                        Code(
+                            code = tag.tag,
+                            tags = tag
+                        )
+                    )     
+        return codes
+
+                    
+            
+        
+        #TODO: split sections header, framework etc. 
+         
+        #TODO: for all tags
+            #TODO: if tag in model, leave
+            #TODO: if tag not in model, add
+            #TODO: remaining tags, move to old tag framework for manual deletion
+        
+        #TODO: Join sections
+        
+        #TODO: Write yaml file
+
+    
+ 
+    def readProjectData(self):
+        projectData = self.readYaml()
+        return projectData
+    
+    
+    def readInterviews(self, interviewList):               
+        # Get interview Text
+        interviews = []
+        for interview in interviewList:
             file = f'{self.projectLocation}/interviews/{interview["file"]}'
             interviewText = self.readInterview(file)            
-                        
-            interviewList.append(
+            interviews.append(
                 Interview(
                     file = file,
                     name = interview['interview'],
-                    text = interviewText,
-                    framework = interview['code framework'],      
+                    info = interview,
+                    text = interviewText
                 )
             )
-        return interviewList
+        return interviews
              
         
     def readInterview(self, file):
@@ -73,7 +158,7 @@ class ThemanticAnalysis:
     def readYaml(self):
         # Select first yaml file in project folder
         projectYaml = glob.glob(self.projectLocation + '/' + '*.yml')[0]
-        
+                
         with open(projectYaml) as f:
             file = full_load_all(f)
             projectData = []
@@ -82,30 +167,28 @@ class ThemanticAnalysis:
         return projectData
 
 
-
 class Interview:
-    def __init__(self, file, name, text, framework):
-        self.file = file
+    def __init__(self, name, file, info, text):
         self.name = name
-        self.framework = framework
+        self.file = file
+        self.info = info
         self.rawText = text
-        
+                
         matchedTags, unmatchedOpeningTags, unmatchedClosingTags = self.extractTags()
-        
         self.tags = matchedTags
         self.unmatchedOpeningTags = unmatchedOpeningTags
         self.unmatchedClosingTags = unmatchedClosingTags
-  
-        self.codes = self.processCodes()
-        
+          
         
     def extractTags(self):
+        # Find all tags
         openingTags, closingTags = self.findRawTags(
             interviewText = self.rawText,
             openingTagFilterStr='<[^/].+?>',
             closingTagFilterStr='</.+?>')
-               
-        matchedTags = {}
+        
+        # Match Tags       
+        matchedTags = []#{}
         unmatchedOpeningTags = []
         unmatchedClosingTags = []
         idx = 0
@@ -113,13 +196,19 @@ class Interview:
         while openingTags and closingTags:
             openingTag = openingTags.pop(0)
             match = self.matchTag(openingTag, closingTags)
-            if match is not None:            
+            if match is not None:                           
                 closingTags, closingTag = match
                 
-                matchedTags = dictOfListsAppend(
-                    dict = matchedTags,
-                    key = openingTag.group(0)[1:-1],
-                    val = (openingTag, closingTag))
+                # Define matched Tag
+                matchedTags.append(
+                    Tag(
+                        interviewName = self.name,
+                        interviewRawText = self.rawText,
+                        openingTag = openingTag,
+                        closingTag = closingTag
+                    )
+                )
+                                
             else:
                 print(f'tag Number {idx} of {openingTagCount}')
                 unmatchedOpeningTags.append(openingTag)
@@ -147,7 +236,7 @@ class Interview:
         openingTag.group(0)[1:-1]
        
         openingTagId = self.extractTagText(
-            pat = 'id[" "]*=[" "]*(.*?)[" "]*>',
+            pat = 'id[" "]*=[" "]*(.*?)[" "]*>',    
             text = openingTag.group(0),
             idxs = (1,-1))
         
@@ -161,98 +250,85 @@ class Interview:
             closingTagName = self.extractTagText(
                 pat =  '</.+?[|>]',
                 text = closingTag.group(0),
-                idxs = (2,-1)).strip()  
+                idxs = (2,-1)).strip()
             
             closingTagId = self.extractTagText(
                 pat =  'id[" "]*=[" "]*(.*?)[" "]*>',
                 text = closingTag.group(0),
-                idxs = (2,-1))    
+                idxs = (2,-1))
             
             if (openingTagName == closingTagName) & (closingTagId == openingTagId):
                 closingTags.pop(idx)
-                return closingTags, closingTag  
+                return closingTags, closingTag
             else:
-                idx += 1      
+                idx += 1  
             
     
     def extractTagText(self, pat, text, idxs=None):
-        result = re.search(pat, text, re.IGNORECASE)         
+        result = re.search(pat, text, re.IGNORECASE)   
         if result is not None:
             result = result.group(0)
             if idxs is not None:
                 return result[idxs[0]:idxs[1]]
             else:
                 return result
-
-
-    def convertTagsToText(self, tags):
-        textTags = []
-        for tagPair in tags:
-            start = tagPair[0].span()[1]# end of first tag is start of text
-            end = tagPair[1].span()[0]# start of first tag is end of text
-            textTags.append(self.rawText[start:end])
-        return textTags
-
-  
-    def processCodes(self):
-        
-        # Master list of codes, combined from interview text and framework
-        listOfCodes = set(list(self.framework.keys()) + list(self.tags.keys()))
-        codes = []
-        for code in listOfCodes:           
-            # Get code properties
-            
-            if self.framework.get(code):
-                definition = self.framework[code]['code definition'] 
-            else:
-                definition = None
-            
-            if self.tags.get(code) is not None:
-                tags = self.tags[code]
-            else:
-                tags = [] 
-            
-            codes.append(
-                Code(
-                    code = code,
-                    definition = definition,
-                    tags = self.convertTagsToText(tags)
-                )
-            )
-              
-        return codes
-     
-     
-#TODO: Maybe this should still be used??? just pass tags to codes, could add lots of logic neatly here
-# 
-# class Tag:
-#     """
-#     Data Class to store all tag information
-#     """
-#     def __init__(self, tag, startIdx, endIdx, rawText):
-#         self.startIdx = startIdx
-#         self.endIdx = endIdx
-#         self.rawText = rawText
-#         self.text = self.cleanRawText(rawText)
-    
-#     def cleanRawText(self, rawText):
-#         text = re.sub('<.*?>', '', rawText)
-#         return text
-    
-#     def __repr__(self):
-#         return f'<{self.text}>'
-    
-    
-    
-class Code:
-    def __init__(self, code, definition=None, tags=None):
-        self.code = code
-        self.definition = definition
-        self.tags = tags
     
     
     def __repr__(self):
-       return f'<{self.code}>'
+        return f'<{self.name}>'
+     
+
+class Tag:
+    """
+    Data Class to store all tag information
+    """
+    def __init__(self, interviewName, interviewRawText, openingTag, closingTag):
+        self.startIdx = openingTag.end()
+        self.endIdx = closingTag.start()
+        openingTagName = openingTag.group(0)[1:-1]
+        closingTagName = closingTag.group(0)[2:-1]
+        
+        if openingTagName == closingTagName:
+            self.tag = openingTagName
+        else:
+            raise Exception('Opening Tag and Closing Tag does not match')
+        
+        self.interviewName = interviewName
+        
+        rawText = interviewRawText[self.startIdx:self.endIdx]
+        self.text = self.cleanRawText(rawText)
+    
+    
+    def cleanRawText(self, rawText):
+        text = re.sub('<.*?>', '', rawText)
+        return text
+    
+    def __repr__(self):
+        return f'<TAG: {self.text}>'
+        
+    
+    
+class Code:
+    def __init__(self, code, definition='', tags=None):
+        self.code = code
+        self.definition = definition
+        
+        if type(tags) == list:        
+            self.tags = tags
+        else:
+            self.tags = [tags]
+
+
+    def addTag(self, tag):
+        self.tags.append(tag)
+
+
+    def updateCodeInfo(self, codeInfo):    
+        self.definition = codeInfo.get('definition')
+
+    
+    def __repr__(self):
+       return f'<CODE: {self.code}: {self.definition}>'
        
              
         
