@@ -1,13 +1,15 @@
 import re
 import glob
 import copy
+import os
+from turtle import settiltangle
 
-from yaml import full_load_all
+from yaml import full_load_all, dump_all
 
 
 #! Next Steps
 
-#TODO: Write functions to update model based on work done in analysis
+#TODO: add function that prints out all codes that have not been assigned to a category
 
 #TODO: Start with network functions
     #TODO: network showing dag of theme
@@ -29,7 +31,7 @@ Tone = N negative, P = positive, N = Neutral
 
 
 class ThemanticAnalysis:
-    def __init__(self, projectLocation):
+    def __init__(self, projectFolder, projectFile):
         """
         process
          - read file(s)
@@ -44,18 +46,28 @@ class ThemanticAnalysis:
         """
 
         self.interviews = []
-        self.projectLocation = projectLocation
-
+        self.projectLocation = projectFolder
+        self.projectFile = projectFile
+        self.project = []
+        self.unusedCodesFramework = []
+        self.interviews = []
+        self.codeFramework = []
+        self.unusedCodeFramework = []
+        self.categoryFramework = []
+        self.themeFramework = []
+        
         projectData = self.readProjectData()
         # Break project data into constituent parts
         interviews = []
         for document in projectData:
             if 'project' in document.keys():
-                self.project = document
+                self.project = document['project']
             elif 'interview' in document.keys():
-                interviews.append(document)
+                interviews.append(document['interview'])
             elif 'code framework' in document.keys():
-                self.codeFramework = document
+                self.codeFramework = document['code framework']
+            elif 'unused codes' in document.keys():
+                self.unusedCodeFramework = document['unused codes']
             elif 'category framework' in document.keys():
                 self.categoryFramework = document
             elif 'theme framework' in document.keys():
@@ -63,6 +75,7 @@ class ThemanticAnalysis:
        
         self.codes = []
         self.unusedCodes = []
+        
         self.interviews = self.readInterviews(interviews)
 
         self.updateCodeFramework()
@@ -71,19 +84,16 @@ class ThemanticAnalysis:
     def updateCodeFramework(self):
         
         taggedCodes = self.readInterviewCodes()
-        
         taggedCodeList = [code.code for code in taggedCodes]
         
-        # get codes from code framework and unused codes
-        frameworkCodeDict = self.codeFramework.get('code framework')
-        unusedCodeDict = self.codeFramework.get('unused codes')
-        
+        # get codes from code framework and unused codes      
         unusedCodes = {}
-        if frameworkCodeDict != None:
-            if unusedCodeDict != None:
-                frameworkCodeDict.update(unusedCodeDict)
+        allCodes = self.codeFramework.copy()
+        if len(allCodes) > 0:
+            if len(self.unusedCodeFramework) > 0:
+                allCodes.update(self.unusedFramework.copy())
             
-            for code, info in frameworkCodeDict.items():
+            for code, info in allCodes.items():               
                 if code in taggedCodeList:
                     idx = taggedCodeList.index(code)
                     taggedCodes[idx].updateCodeInfo(info)
@@ -109,27 +119,71 @@ class ThemanticAnalysis:
                         )
                     )     
         return codes
-
-                    
+    
+    
+    def buildProjectFile(self):
+        projectFile = []
+        
+        # Project Section
+        projectFile.append({'project': self.project})
+        
+        # Interviews Section
+        for interview in self.interviews:
+            projectFile.append({'interview': interview.serialize()})
             
+        # Code Framework section
+        serialCodes = []
+        for code in self.codes:
+            serialCodes.append(code.serialize())
+        projectFile.append({'code framework': serialCodes})    
+            
+        # Unused Codes section    
+        projectFile.append({'unused codes': self.unusedCodes})
         
-        #TODO: split sections header, framework etc. 
-         
-        #TODO: for all tags
-            #TODO: if tag in model, leave
-            #TODO: if tag not in model, add
-            #TODO: remaining tags, move to old tag framework for manual deletion
-        
-        #TODO: Join sections
-        
-        #TODO: Write yaml file
+        # Category frame work section
+        projectFile.append({'category framework': self.categoryFramework})
+            
+        # Theme framework section
+        projectFile.append({'theme framework': self.themeFramework})
+            
+        return projectFile
+    
 
+    def saveModel(self):
+        #Rename corrent file to <model>.bq1        
+
+        currentFilename = f'{self.projectLocation}/{self.projectFile}'
+        
+        # Get all Yaml files in folder
+        modelFiles = []
+        for file in glob.glob(f'{self.projectLocation}/{self.projectFile[:-1]}'):
+            modelFiles.append(file)
+        
+        if len(modelFiles) >= 1:
+
+            # Find latest backup filename
+            backupNumbers = [int(x[-1]) for x in modelFiles]      
+            
+            # Save current file as new backup
+            backupFileName = f'{currentFilename[:-1]}{max(backupNumbers) + 1}'
+            os.rename(currentFilename, backupFileName)
     
- 
+        else:
+            os.rename(currentFilename, currentFilename[:-3] + 'bq1')
+    
+        # Save new file
+        with open(currentFilename, 'w') as file:
+            dump_all(
+                self.buildProjectFile(),
+                file,
+                default_flow_style=False
+            )
+             
+
     def readProjectData(self):
-        projectData = self.readYaml()
+        projectData = self.readYaml(f'{self.projectLocation}/{self.projectFile}')
         return projectData
-    
+        
     
     def readInterviews(self, interviewList):               
         # Get interview Text
@@ -140,7 +194,7 @@ class ThemanticAnalysis:
             interviews.append(
                 Interview(
                     file = file,
-                    name = interview['interview'],
+                    name = interview['interview name'],
                     info = interview,
                     text = interviewText
                 )
@@ -155,9 +209,13 @@ class ThemanticAnalysis:
         return fileContentStr  
         
         
-    def readYaml(self):
+    def readYaml(self, file):
         # Select first yaml file in project folder
-        projectYaml = glob.glob(self.projectLocation + '/' + '*.yml')[0]
+        
+        try: 
+            projectYaml = glob.glob(file)[0]
+        except Exception as e:
+            print(f'Could not find project file: {e}')
                 
         with open(projectYaml) as f:
             file = full_load_all(f)
@@ -188,7 +246,7 @@ class Interview:
             closingTagFilterStr='</.+?>')
         
         # Match Tags       
-        matchedTags = []#{}
+        matchedTags = []
         unmatchedOpeningTags = []
         unmatchedClosingTags = []
         idx = 0
@@ -272,11 +330,25 @@ class Interview:
                 return result[idxs[0]:idxs[1]]
             else:
                 return result
+       
+            
+    def serialize(self):
+        
+        # Build dictionary from available info
+        serialInterview = {
+            'interview': self.name,
+            'file': self.file}
+            
+        for key, val in self.info.items():
+            serialInterview[key] = val
+
+        return serialInterview
     
     
     def __repr__(self):
         return f'<{self.name}>'
      
+
 
 class Tag:
     """
@@ -325,7 +397,15 @@ class Code:
 
     def updateCodeInfo(self, codeInfo):    
         self.definition = codeInfo.get('definition')
-
+        
+        
+    def serialize(self):
+        if self.definition != '':
+            definition = self.definition
+        else:
+            definition = ''        
+        return {self.code: definition}
+    
     
     def __repr__(self):
        return f'<CODE: {self.code}: {self.definition}>'
@@ -345,6 +425,7 @@ class Theme:
         self.category = theme
         self.definition = definition
         self.categories = []
+
 
 
 def dictOfListsAppend(dict, key, val):
