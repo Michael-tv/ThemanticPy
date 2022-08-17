@@ -2,9 +2,13 @@ import re
 import glob
 import copy
 import os
-from turtle import settiltangle
+from dataclasses import dataclass, make_dataclass, field
+from typing import List, OrderedDict
+from unicodedata import category
 
 from yaml import full_load_all, dump_all
+
+import networkx as nx
 
 
 #! Next Steps
@@ -31,22 +35,9 @@ Tone = N negative, P = positive, N = Neutral
 
 
 class ThemanticAnalysis:
-    def __init__(self, projectFolder, projectFile):
-        """
-        process
-         - read file(s)
-         - id tags
-        
-        _summary_
-
-        Parameters
-        ----------
-        dictOfFiles : dictionary of all files to be included in analysis
-            {descriptive name: path to file}
-        """
+    def __init__(self, projectFile):
 
         self.interviews = []
-        self.projectLocation = projectFolder
         self.projectFile = projectFile
         self.project = []
         self.unusedCodesFramework = []
@@ -69,39 +60,103 @@ class ThemanticAnalysis:
             elif 'unused codes' in document.keys():
                 self.unusedCodeFramework = document['unused codes']
             elif 'category framework' in document.keys():
-                self.categoryFramework = document
+                self.categoryFramework = document['category framework']
             elif 'theme framework' in document.keys():
-                self.themeFramework = document 
+                self.themeFramework = document['theme framework']
        
         self.codes = []
+        self.categories = []
+        self.themes = []
         self.unusedCodes = []
         
         self.interviews = self.readInterviews(interviews)
 
-        self.updateCodeFramework()
+        self.processCodes()
+        self.processCategories()
+        self.processThemes()
 
 
-    def updateCodeFramework(self):
-        
+    def processCodes(self):
+
         taggedCodes = self.readInterviewCodes()
         taggedCodeList = [code.code for code in taggedCodes]
-        
-        # get codes from code framework and unused codes      
+          
         unusedCodes = {}
+        #  Create a list of all codes to search though
         allCodes = self.codeFramework.copy()
-        if len(allCodes) > 0:
-            if len(self.unusedCodeFramework) > 0:
-                allCodes.update(self.unusedFramework.copy())
-            
-            for code, info in allCodes.items():               
-                if code in taggedCodeList:
-                    idx = taggedCodeList.index(code)
-                    taggedCodes[idx].updateCodeInfo(info)
-                else:
-                    unusedCodes.update({code: info})
-      
+        if len(self.unusedCodeFramework) > 0:
+            allCodes.extend(
+                [{key: val} for key, val in self.unusedCodeFramework.items()])
+                 
+        # Search through all codes
+        for code in allCodes:   
+            key, val = code.copy().popitem()          
+            if key in taggedCodeList:
+                
+                #TODO check for duplicate tags
+
+                # Combine definitions and codes for updated framework
+                for frameworkCode in self.codeFramework:
+                    key = list(frameworkCode.keys())[0]
+                    val = list(frameworkCode.values())[0]
+                    
+                    # Search through tagged codes for key
+                    for taggedCode in taggedCodes:                   
+                        if key == taggedCode.code:
+                            taggedCode.definition = val
+            else:
+                unusedCodes.update({key: val})
+
         self.codes = taggedCodes
         self.unusedCodes = unusedCodes
+        
+        
+    def processCategories(self):
+        for cat, info in self.categoryFramework.items():
+            codeList = []
+            if info is None:
+                print(cat, info)
+            if info['codes']:
+                for item in info['codes']:
+                    for code in self.codes:
+                        if code.code == item:
+                            codeList.append(code)
+            
+            # if len(self.categoryFramework[cat]['codes']) != len(codeList):
+            #     raise Exception('not all codes matched')
+                       
+            self.categories.append(
+                Category(
+                    category = cat,
+                    definition = self.categoryFramework[cat].get('description') , 
+                    codeList = codeList
+                )
+            )
+            
+            
+    def processThemes(self):
+        
+        for theme, info in self.themeFramework.items():    
+            print(theme)
+            catList = []
+            if info['categories']:
+                
+                for item in info['categories']:
+                    
+                    for category in self.categories:
+                        if category.category == item:
+                            catList.append(category)
+            
+            # if len(self.themeFramework[cat]['categories']) != len(catList):
+            #     raise Exception('not all categories matched')
+
+            self.themes.append(
+                Theme(
+                    theme = theme,
+                    definition = self.themeFramework[theme]['description'], 
+                    categoryList = catList
+                )
+            ) 
       
         
     def readInterviewCodes(self):
@@ -115,11 +170,11 @@ class ThemanticAnalysis:
                     codes.append(
                         Code(
                             code = tag.tag,
-                            tags = tag
+                            tags = tag,
+                            interview = interview
                         )
                     )     
         return codes
-    
     
     def buildProjectFile(self):
         projectFile = []
@@ -150,17 +205,16 @@ class ThemanticAnalysis:
     
 
     def saveModel(self):
-        #Rename corrent file to <model>.bq1        
+        #Rename current file to <model>.bq1        
 
-        currentFilename = f'{self.projectLocation}/{self.projectFile}'
+        currentFilename = f'{self.projectFile}'
         
         # Get all Yaml files in folder
         modelFiles = []
-        for file in glob.glob(f'{self.projectLocation}/{self.projectFile[:-1]}'):
+        for file in glob.glob(f'{self.project["path"]}/{self.projectFile[:-1]}'):
             modelFiles.append(file)
         
         if len(modelFiles) >= 1:
-
             # Find latest backup filename
             backupNumbers = [int(x[-1]) for x in modelFiles]      
             
@@ -178,52 +232,224 @@ class ThemanticAnalysis:
                 file,
                 default_flow_style=False
             )
-             
 
     def readProjectData(self):
-        projectData = self.readYaml(f'{self.projectLocation}/{self.projectFile}')
+        projectData = self.readYaml(self.projectFile)
         return projectData
         
     
     def readInterviews(self, interviewList):               
         # Get interview Text
         interviews = []
-        for interview in interviewList:
-            file = f'{self.projectLocation}/interviews/{interview["file"]}'
+        for interview in interviewList:  
+            print(f'Reading interview: {interview["interview"]}')         
+            file = f'{self.project["path"]}/{interview["file"]}'
             interviewText = self.readInterview(file)            
             interviews.append(
                 Interview(
                     file = file,
-                    name = interview['interview name'],
+                    name = interview['interview'],
                     info = interview,
                     text = interviewText
                 )
             )
         return interviews
              
-        
     def readInterview(self, file):
         with open(file, 'r') as fileObj:
             fileContent = fileObj.readlines()
         fileContentStr = ' '.join(fileContent)
         return fileContentStr  
         
-        
     def readYaml(self, file):
-        # Select first yaml file in project folder
+        # Select first yaml file in project folder 
         
-        try: 
-            projectYaml = glob.glob(file)[0]
-        except Exception as e:
-            print(f'Could not find project file: {e}')
+        #TODO: add try except clause here  
                 
-        with open(projectYaml) as f:
+        with open(file) as f:
             file = full_load_all(f)
             projectData = []
             for doc in file:
                 projectData.append(doc)
         return projectData
+    
+    
+    def codesWithoutCategories(self, unassigned=True):
+        
+        assignedCodes = []
+        for category in self.categories:
+            assignedCodes.extend(category.codeList)
+        
+        #TODO: convert to set and back
 
+        unassignedCodes = []
+        for code in self.codes:
+            if code not in assignedCodes:
+                unassignedCodes.append(code)
+ 
+        
+        #TODO: convert to set and back
+        
+        if unassigned:
+            return unassignedCodes
+        else:
+            return assignedCodes
+
+    def extractAllNodes(self):
+        # extract all nodes
+        allNodes = []
+        for theme in self.themes:
+            for category in theme.categoryList:
+                for code in category.codeList:
+                    if code.code not in allNodes:
+                        allNodes.append(code.get_code())
+                if category.category not in allNodes:
+                    allNodes.append(category.get_category())
+            if theme.theme not in allNodes:
+                allNodes.append(theme.get_theme())                  
+
+        assignmentDict = {}
+        for i, node in enumerate(allNodes):
+            assignmentDict[node] = f'node_{i}'
+        labelDict = {y: self.reformatLabel(x) for x, y in assignmentDict.items()}
+
+        return allNodes
+    
+    def buildThemeNet(self, colors=None):
+        
+        if colors is None:
+            colors = ['#4E79A7', '#F28E2B', '#E15759', '#76B7B2', '#59A14F', '#EDC948', '#B07AA1', '#FF9DA7', '#9C755F', '#BAB0AC']
+        
+        print('Starting node extraction', end='...')
+        allNodes = self.extractAllNodes()
+        print('Done')
+        assignmentDict = {}
+        for i, node in enumerate(allNodes):
+            assignmentDict[node] = f'node_{i}'
+        labelDict = {y: self.reformatLabel(x) for x, y in assignmentDict.items()}
+        
+        # networkList = []
+        networkList = OrderedDict()
+        for theme in self.themes:
+            network = nx.Graph()
+            # network = nx.DiGraph()
+            labels = {}
+            
+            cIdx = 0
+            assignedNodes = {}
+            for category in theme.categoryList:
+                network.add_node(assignmentDict[category.get_category()], nodeType='category', color=colors[-1])
+                key = assignmentDict[category.get_category()]
+                val = labelDict[key]
+                labels[key] = val
+                # network.add_edge(assignmentDict[theme.get_theme()], assignmentDict[category.get_category()])
+
+                for code in category.codeList:
+                    # breakpoint()
+                    if code.interview.name not in assignedNodes.keys():
+                        assignedNodes[code.interview.name] = colors[cIdx]
+                        color = colors[cIdx]
+                        cIdx += 1
+                    else:
+                        color = assignedNodes[code.interview.name]
+                    
+                    network.add_node(code.interview.name.replace(' ', '_'), nodeType='interview', color=color)
+                    labels[code.interview.name.replace(' ', '_')] = code.interview.name
+                    network.add_edge(assignmentDict[category.get_category()], code.interview.name.replace(' ', '_'), color=color)
+            
+            networkList[theme.get_theme()] = (network, labels)
+        
+        return networkList
+    
+    
+    def buildInterviewNet(self):
+        allNodes = self.extractAllNodes()
+        assignmentDict = {}
+        for i, node in enumerate(allNodes):
+            assignmentDict[node] = f'node_{i}'
+        labelDict = {y: self.reformatLabel(x) for x, y in assignmentDict.items()}
+
+        interviewNet = {}
+        for interview in self.interviews:
+            network = nx.DiGraph()
+            labels = {}
+            for theme in self.themes:
+                for category in theme.categoryList:
+                    for code in category.codeList:
+                        if code.interview == interview:
+                            # Add Code
+                            network.add_node(assignmentDict[code.get_code()], nodeType='code')
+                            key = assignmentDict[code.get_code()]
+                            labels[key] = labelDict[key]  
+                            
+                            # Add Category
+                            network.add_node(assignmentDict[category.get_category()], nodeType='category')
+                            key = assignmentDict[category.get_category()]
+                            labels[key] = labelDict[key]  
+                            
+                            # Add Theme                          
+                            network.add_node(assignmentDict[theme.get_theme()], nodeType='theme')
+                            key = assignmentDict[theme.get_theme()]
+                            labels[key] = labelDict[key]  
+                                                        
+                            # Add Edges
+                            network.add_edge(
+                                assignmentDict[code.get_code()],
+                                assignmentDict[category.get_category()])
+                            network.add_edge(
+                                assignmentDict[category.get_category()],
+                                assignmentDict[theme.get_theme()])
+            interviewNet[interview.name] = (network, labels)
+
+        return interviewNet
+    
+
+    def reformatLabel(self, name, lineLength=15):
+        words = name[4:].split(' ')
+        length = 0
+        newName = []
+        for idx, word in enumerate(words):
+            length += len(word)
+            if length >= lineLength:
+                newName.append('\n')
+                length = 0
+            newName.append(word)
+        return ' '.join(newName)
+
+    def buildDataFrameworkNet(self):
+        # extract all nodes
+        allNodes = self.extractAllNodes()
+
+        assignmentDict = {}
+        for i, node in enumerate(allNodes):
+            assignmentDict[node] = f'node_{i}'
+        labelDict = {y: self.reformatLabel(x) for x, y in assignmentDict.items()}
+
+        networkList = []
+        for theme in self.themes:
+            network = nx.DiGraph()
+            labels = {}
+            network.add_node(assignmentDict[theme.get_theme()], nodeType='theme')
+            key = assignmentDict[theme.get_theme()]
+            val = labelDict[key]
+            labels[key] = val
+
+            for category in theme.categoryList:
+                network.add_node(assignmentDict[category.get_category()], nodeType='category')
+                key = assignmentDict[category.get_category()]
+                val = labelDict[key]
+                labels[key] = val
+                network.add_edge(assignmentDict[theme.get_theme()], assignmentDict[category.get_category()])
+                for code in category.codeList:
+                    network.add_node(assignmentDict[code.get_code()], nodeType='code', interview=code.interview.name)
+                    key = assignmentDict[code.get_code()]
+                    val = labelDict[key]
+                    labels[key] = val
+                    network.add_edge(assignmentDict[category.get_category()], assignmentDict[code.get_code()], interview=code.interview.name)
+
+            networkList.append((network, labels))
+
+        return networkList
 
 class Interview:
     def __init__(self, name, file, info, text):
@@ -265,10 +491,9 @@ class Interview:
                         openingTag = openingTag,
                         closingTag = closingTag
                     )
-                )
-                                
+                )                 
             else:
-                print(f'tag Number {idx} of {openingTagCount}')
+                print(f'UNMATCHED: tag Number {idx} of {openingTagCount}: {openingTag}')
                 unmatchedOpeningTags.append(openingTag)
             idx += 1
         
@@ -377,28 +602,25 @@ class Tag:
     
     def __repr__(self):
         return f'<TAG: {self.text}>'
-        
     
     
 class Code:
-    def __init__(self, code, definition='', tags=None):
+    def __init__(self, code, definition=None, tags=None, interview=None):
         self.code = code
         self.definition = definition
+        self.interview = interview
         
         if type(tags) == list:        
             self.tags = tags
         else:
             self.tags = [tags]
 
+    def get_code(self):
+        return f'cod-{self.code}'
 
     def addTag(self, tag):
         self.tags.append(tag)
 
-
-    def updateCodeInfo(self, codeInfo):    
-        self.definition = codeInfo.get('definition')
-        
-        
     def serialize(self):
         if self.definition != '':
             definition = self.definition
@@ -406,27 +628,52 @@ class Code:
             definition = ''        
         return {self.code: definition}
     
-    
     def __repr__(self):
-       return f'<CODE: {self.code}: {self.definition}>'
+       return f'<CODE: {self.interview} - {self.code}: {self.definition}>'
        
-             
-        
+       
 class Category:
-    def __init__(self, category, definition=None):
+    def __init__(self, category, definition=None, codeList=None):
         self.category = category
         self.definition = definition
-        self.codes = []
+        self.codeList = codeList
+        
+    def get_category(self):
+        return f'cat-{self.category}'
+
+    # def __repr__(self):
+    #    return f'<CODE: {self.interview} - {self.code}: {self.definition}>'
+       
+             
+# @dataclass        
+# class Category:
+#     category: str
+#     definition: str = None
+#     codeList: List[Code] = field(default_factory=List)
 
 
 
+
+# @dataclass
+# class Theme:
+#     theme: str
+#     definition: str = None
+#     categoryList: List[Category] = field(default_factory=List)
+    
+#     def __repr__(self):
+#         return f'<Theme - {self.theme}>'
+    
 class Theme:
-    def __init__(self, theme, definition=None):
-        self.category = theme
+    def __init__(self, theme, definition=None, categoryList=None):
+        self.theme = theme
         self.definition = definition
-        self.categories = []
+        self.categoryList = categoryList
+        
+    def get_theme(self):
+        return f'the-{self.theme}'
 
-
+    # def __repr__(self):
+    #    return f'<CODE: {self.interview} - {self.code}: {self.definition}>'
 
 def dictOfListsAppend(dict, key, val):
     appendedDict = copy.deepcopy(dict)
