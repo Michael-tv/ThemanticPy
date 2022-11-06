@@ -404,7 +404,7 @@ class ThemanticAnalysis:
         return interviewNet
     
 
-    def reformatLabel(self, name, lineLength=15):
+    def reformatLabel(self, name, lineLength=10):
         words = name[4:].split(' ')
         length = 0
         newName = []
