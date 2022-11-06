@@ -8,8 +8,12 @@ pyqt5 = "*"
 pyqt5-tools = "*"
 pyyaml = "*"
 networkx = "*"
+matplotlib = "*"
+pydot = "*"
+pandas = "*"
 
 [dev-packages]
+ipykernel = "*"
 
 [requires]
 python_version = "3.9"
